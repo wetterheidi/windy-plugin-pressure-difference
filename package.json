@@ -28,6 +28,7 @@
         "@windycom/plugin-devtools": "^3.0.4"
     },
     "devDependencies": {
-        "@types/jquery": "^3.5.30"
+        "@types/jquery": "^3.5.30",
+        "tslib": "^2.6.3"
     }
 }
