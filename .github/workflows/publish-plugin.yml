@@ -8,6 +8,8 @@ jobs:
         runs-on: ubuntu-latest
         env:
             WINDY_API_KEY: '${{ secrets.WINDY_API_KEY }}'
+            # Public Windy user id, part of the published plugin URL. Not a secret.
+            WINDY_USER_ID: '1042730'
         steps:
             - uses: actions/checkout@v2
             - name: Build
@@ -28,3 +30,17 @@ jobs:
                   tar cf ../plugin.tar .
                   echo "Publishing plugin..."
                   curl -s --fail-with-body -XPOST 'https://api.windy.com/api/windy-plugins/v1.0/upload' -H "x-windy-api-key: ${WINDY_API_KEY}" -F "plugin_archive=@../plugin.tar"
+                  echo ""
+                  # The upload API no longer returns the plugin URL, so build it ourselves.
+                  # Scheme: windy-plugins.com/<user id>/<plugin name>/<version>/plugin.min.js
+                  PLUGIN_NAME=$(jq -r .name plugin.json)
+                  PLUGIN_VERSION=$(jq -r .version plugin.json)
+                  PLUGIN_URL="https://windy-plugins.com/${WINDY_USER_ID}/${PLUGIN_NAME}/${PLUGIN_VERSION}/plugin.min.js"
+                  echo "Published: ${PLUGIN_URL}"
+                  {
+                    echo "### Plugin published"
+                    echo ""
+                    echo "\`${PLUGIN_NAME}\` version \`${PLUGIN_VERSION}\`"
+                    echo ""
+                    echo "${PLUGIN_URL}"
+                  } >> "$GITHUB_STEP_SUMMARY"
