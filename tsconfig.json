@@ -11,6 +11,8 @@
         "resolveJsonModule": false,
         "sourceMap": false,
         "incremental": true,
+        /* Keep the build cache out of `dist`, which is packed as-is when publishing */
+        "tsBuildInfoFile": "./.rollup.cache/tsconfig.tsbuildinfo",
         "noEmit": true,
         "alwaysStrict": true,
         "esModuleInterop": true,

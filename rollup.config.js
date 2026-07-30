@@ -13,7 +13,10 @@ import sveltePreprocess from 'svelte-preprocess';
 
 import { transformCodeToESMPlugin, keyPEM, certificatePEM } from '@windycom/plugin-devtools';
 
-const useSourceMaps = true;
+/* The build script sets SERVE=false. Source maps are useful while developing, but they would
+   more than double the size of the published archive, which the upload API rejects. */
+const isProductionBuild = process.env.SERVE === 'false';
+const useSourceMaps = !isProductionBuild;
 
 const buildConfigurations = {
     src: {
@@ -31,7 +34,7 @@ export default {
         {
             file: `dist/${out}.js`,
             format: 'module',
-            sourcemap: true,
+            sourcemap: useSourceMaps,
         },
         {
             file: `dist/${out}.min.js`,
