@@ -1,5 +1,8 @@
-<div class="mt-15">
+<div class="mt-15 chart">
     <svg id="svgid" bind:this={svgEl}></svg>
+    {#if errorMessage}
+        <p class="error">{errorMessage}</p>
+    {/if}
 </div>
 
 <script lang="ts">
@@ -7,47 +10,64 @@
 
     import * as d3 from 'd3';
 
-    import type { DataHash, LatLon, WeatherDataPayload, SummaryDay } from '@windy/interfaces.d';
-    import type { Timestamp, YearMonthDay } from '@windy/types.d';
-    import type { HttpPayload } from '@windy/http.d';
+    import type { LatLon } from '@windy/interfaces.d';
+    import type { PointProducts } from '@windy/rootScope.d';
+    import type { DataHash2, SummaryDayWithPredictability } from '@windy/node-forecast-v3.d';
+    import type { Timestamp } from '@windy/types.d';
 
     export let pointTop: LatLon;
     export let pointBottom: LatLon;
-    export let nameOfThisPlugin: string;
-    export let forecastModel: string;
+    export let forecastModel: PointProducts;
 
     export let topText: string | undefined = undefined;
     export let bottomText: string | undefined = undefined;
 
     let svgEl: SVGSVGElement;
+    let errorMessage: string | undefined = undefined;
 
     type TSValue = { ts: Timestamp; diff: number };
 
-    $: {
-        if (pointTop && pointBottom) {
-            const pointTopPromise = getPointForecastData(forecastModel, pointTop, nameOfThisPlugin);
-            const pointBottomPromise = getPointForecastData(
-                forecastModel,
-                pointBottom,
-                nameOfThisPlugin,
-            );
+    /**
+     * The v3 point forecast API only returns the sections listed in `include`, so `summary`
+     * (needed for the day separators) has to be requested explicitly. `days` is honoured
+     * for subscribers only, everybody else gets the default of 5 days.
+     */
+    const requestOptions = { days: 10 } as const;
+    const include = { summary: true } as const;
 
-            Promise.all([pointTopPromise, pointBottomPromise]).then(
-                ([{ data: top }, { data: bottom }]: HttpPayload<
-                    WeatherDataPayload<DataHash>
-                >[]) => {
-                    const topData = top.data;
-                    const bottomData = bottom.data;
-                    const tsValues = calculatePressureDifference(topData, bottomData);
-                    const midnights = getAllMidnights(top.summary);
-                    drawTheGraph(tsValues, midnights);
-                },
-            );
+    /**
+     * Loads both end points and redraws the chart.
+     *
+     * Must stay a plain function called from the reactive statement below: everything this
+     * function touches (`svgEl`, `errorMessage`) would otherwise become a dependency of that
+     * statement, and drawing the chart would re-trigger the fetch in an endless loop.
+     */
+    const loadAndDraw = (model: PointProducts, top: LatLon, bottom: LatLon): void => {
+        if (!top || !bottom) {
+            return;
         }
-    }
 
-    const getAllMidnights = (summary: Record<YearMonthDay, SummaryDay>): Timestamp[] => {
-        return Object.keys(summary).map(key => summary[key].timestamp);
+        Promise.all([
+            getPointForecastData(model, { ...top, ...requestOptions }, include),
+            getPointForecastData(model, { ...bottom, ...requestOptions }, include),
+        ])
+            .then(([{ data: topPayload }, { data: bottomPayload }]) => {
+                const tsValues = calculatePressureDifference(topPayload.data, bottomPayload.data);
+
+                errorMessage = undefined;
+                drawTheGraph(tsValues, getAllMidnights(topPayload.summary));
+            })
+            .catch((error: unknown) => {
+                console.error(`Pressure difference: loading ${model} failed`, error);
+                errorMessage = 'No forecast data available for this model.';
+                clearTheGraph();
+            });
+    };
+
+    $: loadAndDraw(forecastModel, pointTop, pointBottom);
+
+    const getAllMidnights = (summary: SummaryDayWithPredictability[] = []): Timestamp[] => {
+        return summary.map(day => day.timestamp);
     };
 
     /**
@@ -56,8 +76,8 @@
      * different arrays
      */
     const calculatePressureDifference = (
-        { pressure: p1, ts: ts1 }: DataHash,
-        { pressure: p2, ts: ts2 }: DataHash,
+        { pressure: p1, ts: ts1 }: DataHash2,
+        { pressure: p2, ts: ts2 }: DataHash2,
     ): TSValue[] => {
         const tsValues: TSValue[] = ts1.map((ts, i) => {
             const i2 = ts2.indexOf(ts);
@@ -71,7 +91,25 @@
         return tsValues;
     };
 
+    /* Uses d3 rather than `svgEl.innerHTML = ''`, which Svelte would turn into an
+       invalidation of `svgEl` and thereby into a redraw loop */
+    const clearTheGraph = () => {
+        if (svgEl) {
+            d3.select(svgEl).selectAll('*').remove();
+        }
+    };
+
     const drawTheGraph = (lineData: TSValue[], midnights: Timestamp[]) => {
+        if (!svgEl) {
+            return;
+        }
+
+        if (!lineData.length) {
+            errorMessage = 'No forecast data available for this model.';
+            clearTheGraph();
+            return;
+        }
+
         const importantValues = [-12, -8, -4, 0, 4, 8, 12];
         const noons: Timestamp[] = midnights.map(ts => ts + 12 * 3600 * 1000);
 
@@ -84,7 +122,7 @@
 
         const textMargin = 20;
 
-        svgEl.innerHTML = '';
+        clearTheGraph();
         const svg = d3.select(svgEl);
 
         const innerSvg = svg
@@ -148,7 +186,6 @@
                 .attr('fill', 'white')
                 .text(topText);
         }
-        console.log('botton ' + bottomText);
         // Add text to the bottom right corner
         if (bottomText) {
             innerSvg
@@ -189,5 +226,18 @@
     svg {
         width: 100%;
         height: 200px;
+    }
+    .chart {
+        position: relative;
+    }
+    .error {
+        position: absolute;
+        top: 50%;
+        left: 0;
+        right: 0;
+        margin: 0;
+        transform: translateY(-50%);
+        text-align: center;
+        opacity: 0.6;
     }
 </style>

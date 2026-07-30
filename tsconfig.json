@@ -23,10 +23,19 @@
         "strictBindCallApply": true,
         "forceConsistentCasingInFileNames": true,
         "isolatedModules": true,
+        "skipLibCheck": true,
         "paths": {
+            /* Pure type declarations (`@windy/xxx.d`) live either at the root of `types`
+               or in `client/d.ts.files`, the runtime modules in `client` */
+            "@windy/*.d": [
+                "./node_modules/@windycom/plugin-devtools/types/*.d",
+                "./node_modules/@windycom/plugin-devtools/types/client/d.ts.files/*.d",
+                "./node_modules/@windycom/plugin-devtools/types/client/*.d",
+            ],
             "@windy/*": [
                 "./node_modules/@windycom/plugin-devtools/types/*",
                 "./node_modules/@windycom/plugin-devtools/types/client/*",
+                "./node_modules/@windycom/plugin-devtools/types/client/d.ts.files/*",
             ],
         }
     },

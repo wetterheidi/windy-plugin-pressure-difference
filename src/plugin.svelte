@@ -25,7 +25,6 @@
                 pointTop={endPoints[cs.start]}
                 pointBottom={endPoints[cs.end]}
                 forecastModel={nwm[model]}
-                nameOfThisPlugin={name}
                 topText={cs.topText}
                 bottomText={cs.bottomText}
             />
@@ -53,7 +52,7 @@
     /* Variables are set in src/static */
     import { crossSections, endPoints, nwm } from 'src/static';
 
-    const { title, name } = config;
+    const { title } = config;
 
     /* Add layer for lines to the map*/
     var activeLine = L.featureGroup().addTo(windyMap);
@@ -106,7 +105,7 @@
         midPopup = new L.Popup({ autoClose: false, closeOnClick: false, closeButton: false })
             .setLatLng([midPointLoc.lat, midPointLoc.lon])
             .addTo(activeLine);
-        setPopupInfo(midPointLoc);
+        updatePopup();
 
         const bounds = new L.LatLngBounds([
             [Math.max(start.lat, end.lat) + 0.5, Math.max(start.lon, end.lon) + 0.5],
@@ -118,50 +117,53 @@
         setTimeout(() => windyMap.fitBounds(bounds, { padding: [395, 20] }), 100);
     }
 
-    function setPopupInfo(middle: LatLon) {
+    async function setPopupInfo(middle: LatLon) {
         /* Interpolate wind values for the selected cross section*/
-        getLatLonInterpolator().then((interpolateLatLon: CoordsInterpolationFun | null) => {
-            let html = csName(csIndex);
+        const requestedIndex = csIndex;
+        const interpolateLatLon: CoordsInterpolationFun | null = await getLatLonInterpolator();
 
-            if (!interpolateLatLon) {
-                html += '<tr green-text > Do not reload this plugin.<br /> Start it again!';
-            } else if (windyStore.get('overlay') !== 'wind') {
-                html +=
-                    'Only wind is interpolated.<br />Please select wind overlay.';
+        let html = csName(requestedIndex);
+
+        if (!interpolateLatLon) {
+            html += '<tr green-text > Do not reload this plugin.<br /> Start it again!';
+        } else if (windyStore.get('overlay') !== 'wind') {
+            html += 'Only wind is interpolated.<br />Please select wind overlay.';
+        } else {
+            /* The interpolator samples the rendered map tile, so it is asynchronous and
+               has to be awaited. Its result can be either invalid (NaN, null, -1)
+               or an array of numbers */
+            const interpolated = await interpolateLatLon(middle);
+
+            if (Array.isArray(interpolated)) {
+                // If everything works well, we should get raw meterological values
+                const { dir, wind } = wind2obj(interpolated);
+
+                // This will convert wind speed form m/s to user's preferred units
+                const windSpeed = metrics.wind.convertValue(wind);
+
+                html += `<b> Wind: ${dir}° ${windSpeed}<br /></b>`;
             } else {
-                // Interpolated values can be either invalid (NaN, null, -1)
-                // or array of numbers
-                const interpolated = interpolateLatLon(middle);
-
-                if (Array.isArray(interpolated)) {
-                    // I everything works well, we should get raw meterological values
-                    const { dir, wind } = wind2obj(interpolated);
-
-                    // This will convert wind speed form m/s to user's preferred units
-                    const windSpeed = metrics.wind.convertValue(wind);
-
-                    html += `<b> Wind: ${dir}° ${windSpeed}<br /></b>`;
-                } else {
-                    html += 'No interpolated values available for this position';
-                }
-                // const ts = new Date(windyStore.get('timestamp'));
-                // html += `<b> ${ts.toLocaleDateString('en-US')} ${ts.toLocaleTimeString('en-US')}<br /></b>`;
+                html += 'No interpolated values available for this position';
             }
+        }
+
+        /* Another cross section may have been selected while we were waiting */
+        if (requestedIndex === csIndex) {
             midPopup?.setContent(html);
-        });
+        }
     }
 
-    const listener = () => {
-        console.log('---redrawFinished', new Date(windyStore.get('timestamp')));
-        setPopupInfo(midPointLoc);
+    const updatePopup = () => {
+        setPopupInfo(midPointLoc).catch((error: unknown) =>
+            console.error('Pressure difference: interpolation failed', error),
+        );
     };
 
     onMount(() => {
-        console.log('--Mount');
-        bcast.on('redrawFinished', listener);
+        bcast.on('redrawFinished', updatePopup);
     });
     onDestroy(() => {
-        bcast.off('redrawFinished', listener);
+        bcast.off('redrawFinished', updatePopup);
         windyMap.removeLayer(activeLine);
         });
 </script>
