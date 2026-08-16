@@ -10,6 +10,13 @@ export const crossSections: CrossSection[] = [
         remark: 'Bise: Pressure difference of at least -4 hPa and northeasterly winds at 700 hPa'
     },
     {
+        start: 'Genf', end: 'Albertville', windName: 'Bise',
+        models: ['AROME', 'ALADIN', 'ICON', 'ECMWF'],
+        topText: 'Bise ⬇',
+        bottomText: 'Southerly winds ⬆',
+        remark: 'Bise: Pressure difference of at least +2 hPa'
+    },
+    {
         start: 'Lugano', end: 'Zürich', windName: 'Foehn',
         models: ['ICON-D2', 'AROME', 'ICON', 'ECMWF'],
         topText: 'South foehn ⬆',
@@ -80,6 +87,7 @@ export const endPoints: EndPoint = {
     Zürich: { lat: 47.45734, lon: 8.554624 },
     Lugano: { lat: 46.00314, lon: 8.909517 },
     Genf: { lat: 46.241142, lon: 6.116257 },
+    Albertville: { lat: 45.674757, lon: 6.389153 },
     Stuttgart: { lat: 48.686346, lon: 9.20362 },
     Bozen: { lat: 46.460921, lon: 11.326727 },
     Salzburg: { lat: 47.792859, lon: 13.003159 },

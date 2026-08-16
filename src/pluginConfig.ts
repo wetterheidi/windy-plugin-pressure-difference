@@ -2,7 +2,7 @@ import type { ExternalPluginConfig } from '@windy/interfaces';
 
 const config: ExternalPluginConfig = {
     name: 'windy-plugin-pressure-difference',
-    version: '0.0.11',
+    version: '0.0.12',
     title: 'Pressure Diff Charts Alps',
     icon: '⛰️',
     description: 'Displays pressure difference diagrams for various cross sections.',
